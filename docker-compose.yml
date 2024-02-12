@@ -1,0 +1,43 @@
+version: "3.7"
+
+services:
+  traefik:
+    image: traefik:latest
+    container_name: report.proxy
+    restart: always
+    ports:
+      - "3000:80"
+      - "8888:8080" # The Web UI (enabled by --api)
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock # So that Traefik can listen to the Docker events
+      - ./traefik:/etc/traefik # So that Traefik can listen to the Docker events
+    networks:
+      - report
+
+  report.cp.api:
+    build:
+      context: .
+    container_name: report.cp.api
+    volumes:
+      - reportqdata:/app/node_modules
+      - .:/app
+    restart: on-failure
+    networks:
+      - report
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.report-api.rule=Host(`localhost`)"
+      - "traefik.http.middlewares.report-auth.forwardauth.address=http://localhost/auth/check"
+      - "traefik.http.middlewares.report-auth.forwardauth.trustForwardHeader=true"
+      - "traefik.http.middlewares.report-auth.forwardauth.authResponseHeaders=X-Auth-User"
+      - "traefik.http.services.report-api.loadbalancer.server.port=3000"
+      - "traefik.http.routers.report-api.entrypoints=web"
+    environment:
+      PREFIX: "report-service"
+      PORT: 3000
+volumes:
+  reportqdata:
+    external: true
+networks:
+  report:
+    external: true
